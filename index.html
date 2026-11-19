@@ -15,7 +15,10 @@ header{position:sticky;top:0;z-index:10;background:var(--or);color:#141414;displ
 header span{flex:1}
 header button{background:#141414;color:var(--or);border-radius:20px;padding:6px 14px;font-weight:700}
 #st{background:#2b2b2b;color:var(--or);padding:8px;text-align:center;font-weight:700;font-size:14px}
-main{padding:14px}
+main{padding:14px 14px 90px}
+#nv{position:fixed;bottom:0;inset-inline:0;z-index:12;display:flex;background:#1b1b1b;border-top:2px solid var(--or);padding-bottom:env(safe-area-inset-bottom,0px)}
+#nv button{flex:1;padding:12px 4px;font-weight:700;background:0;color:var(--mut)}
+#nv button.on{color:var(--or);border-top:3px solid var(--or);margin-top:-2px}
 .gr{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .cb,.ib{background:var(--cd);border:3px solid var(--or);border-radius:16px;min-height:84px;padding:10px;font-weight:900;font-size:17px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 .cb:active,.ib:active{background:var(--or);color:#141414}
@@ -35,7 +38,7 @@ input,textarea{width:100%;font:inherit;background:var(--bg);color:var(--tx);bord
 .ln div:first-child{flex:1}
 .ln .q{display:flex;align-items:center;gap:10px;font-weight:900}
 .ln .q button{width:32px;height:32px;border-radius:50%;background:var(--or);color:#141414;font-weight:900;font-size:18px}
-.tot{display:flex;justify-content:space-between;font-weight:900;font-size:22px;margin:12px 0}
+.tot{display:flex;justify-content:space-between;font-weight:900;font-size:22px;margin:10px 0}
 .row{display:flex;gap:6px;align-items:center;margin-top:6px}
 .row input{margin:0}
 .row .p{width:80px;flex:none}
@@ -43,8 +46,10 @@ input,textarea{width:100%;font:inherit;background:var(--bg);color:var(--tx);bord
 .row input[type=checkbox]{width:20px;height:20px}
 .x{background:#5a1f1f;border-radius:8px;padding:6px 10px}
 .add{background:var(--or);color:#141414;border-radius:8px;padding:6px 12px;font-weight:900}
-.cat{border:2px solid var(--bd);border-radius:14px;padding:10px;margin:12px 0}
+.cat{border:2px solid var(--bd);border-radius:14px;padding:12px;margin:12px 0}
 .mut{color:var(--mut);font-size:13px}
+.lr{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:14px}
+.good{color:#4caf50}.bad{color:#ef5350}.str{text-decoration:line-through;opacity:.6}
 #lg{max-width:360px;margin:12vh auto;padding:20px;text-align:center}
 #lg h1{color:var(--or);font-size:34px;margin-bottom:10px}
 </style>
@@ -58,9 +63,10 @@ input,textarea{width:100%;font:inherit;background:var(--bg);color:var(--tx);bord
   <button class="big" onclick="login()">دخول</button>
 </div>
 <div id="app" hidden>
-  <header><span>طلب جديد</span><button onclick="openCart()" id="cb">🛒 0</button><button onclick="openSet()">⚙️</button></header>
+  <header><span id="ht">طلب جديد</span><button onclick="openCart()" id="cb">🛒 0</button><button onclick="openSet()">⚙️</button></header>
   <div id="st" hidden></div>
   <main id="main"></main>
+  <nav id="nv"><button data-m="new" class="on" onclick="nav('new')">🛒 طلب جديد</button><button data-m="shifts" onclick="nav('shifts')">⏱ الشيفتات</button><button data-m="log" onclick="nav('log')">📊 السجل</button></nav>
 </div>
 <div class="ov" id="o1" onclick="if(event.target==this)this.classList.remove('on')"><div class="sh" id="s1"></div></div>
 <div class="ov" id="o2" onclick="if(event.target==this)this.classList.remove('on')"><div class="sh" id="s2"></div></div>
@@ -71,7 +77,10 @@ const K='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6In
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={g(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},s(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-let S=ls.g('eo_s'),cats=[],items=[],info={},cart=[],last=null,tm;
+const fd=d=>new Date(d).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'});
+const p2=n=>String(n).padStart(2,'0');
+const dur=ms=>{ms=Math.max(0,Math.floor(ms/1000));return p2(Math.floor(ms/3600))+':'+p2(Math.floor(ms/60)%60)+':'+p2(ms%60)};
+let S=ls.g('eo_s'),cats=[],items=[],info={},cart=[],last=null,tm,mode='new',poll,curShift=null;
 
 async function api(p,o={},retry=1){
   const r=await fetch(U+p,{...o,headers:{apikey:K,Authorization:'Bearer '+(S?S.a:K),'Content-Type':'application/json',Prefer:'return=representation',...(o.headers||{})}});
@@ -80,6 +89,7 @@ async function api(p,o={},retry=1){
   const t=await r.text();return t?JSON.parse(t):null;
 }
 const rest=(p,m,b)=>api('/rest/v1/'+p,m?{method:m,body:JSON.stringify(b)}:{});
+const rpc=(f,b)=>api('/rest/v1/rpc/'+f,{method:'POST',body:JSON.stringify(b||{})});
 async function login(){
   const r=await fetch(U+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:K,'Content-Type':'application/json'},body:JSON.stringify({email:$('#em').value.trim(),password:$('#pw').value})});
   const d=await r.json();if(!r.ok){alert('بيانات الدخول غير صحيحة');return}
@@ -90,16 +100,27 @@ async function refresh(){
   const d=await r.json();if(!r.ok)return 0;S={a:d.access_token,r:d.refresh_token};ls.s('eo_s',S);return 1}catch(e){return 0}
 }
 function logout(){S=null;ls.s('eo_s',null);$('#app').hidden=true;$('#lg').hidden=false}
-
 async function load(){
   const [c,i,s]=await Promise.all([rest('categories?select=*&order=sort'),rest('items?select=*&order=sort'),rest('settings?select=*&key=eq.public_info')]);
   cats=c;items=i;info=(s[0]&&s[0].value)||{};
 }
 async function start(){
   try{await load()}catch(e){return logout()}
-  $('#lg').hidden=true;$('#app').hidden=false;home();
+  $('#lg').hidden=true;$('#app').hidden=false;nav('new');
 }
 
+/* ---------- navigation ---------- */
+function nav(m){
+  mode=m;clearInterval(poll);
+  document.querySelectorAll('#nv button').forEach(b=>b.className=b.dataset.m==m?'on':'');
+  $('#cb').style.display=m=='new'?'':'none';
+  $('#ht').textContent={new:'طلب جديد',shifts:'الشيفتات',log:'السجل'}[m];
+  if(m=='new')home();
+  else if(m=='shifts'){shiftsView();poll=setInterval(liveShift,5000)}
+  else logView();
+}
+
+/* ---------- new order (phone orders) ---------- */
 function home(){
   $('#main').innerHTML='<div class="gr">'+cats.filter(c=>c.active).map(c=>`<button class="cb" onclick="openCat('${c.id}')">${esc(c.name_ar)}</button>`).join('')+'</div>';
 }
@@ -120,7 +141,6 @@ function add(id){
 const nm=id=>{const i=items.find(x=>x.id==id),c=cats.find(x=>x.id==i.category_id);return c.name_ar+' - '+i.name_ar};
 const pr=id=>+items.find(x=>x.id==id).price;
 const total=()=>cart.reduce((a,l)=>a+pr(l.id)*l.qty,0);
-
 function openCart(){
   const o=$('#s1');
   if(!cart.length){o.innerHTML='<h3>السلة</h3><p class="mut">السلة فارغة</p>';$('#o1').classList.add('on');return}
@@ -136,7 +156,7 @@ function chg(i,d){cart[i].qty+=d;if(cart[i].qty<1)cart.splice(i,1);marks();openC
 async function send(){
   const b=$('#sb');b.disabled=true;
   try{
-    const r=await api('/rest/v1/rpc/place_order',{method:'POST',body:JSON.stringify({p_source:'owner',p_name:$('#cn').value.trim(),p_phone:$('#cp').value.trim(),p_notes:$('#co').value.trim(),p_items:cart.map(l=>({item_id:l.id,qty:l.qty,notes:''}))})});
+    const r=await rpc('place_order',{p_source:'owner',p_name:$('#cn').value.trim(),p_phone:$('#cp').value.trim(),p_notes:$('#co').value.trim(),p_items:cart.map(l=>({item_id:l.id,qty:l.qty,notes:''}))});
     last=r;cart=[];marks();$('#o1').classList.remove('on');home();track();
   }catch(e){alert('لم يتم الإرسال، تأكد من الإنترنت وحاول مرة أخرى');b.disabled=false}
 }
@@ -145,15 +165,66 @@ function track(){
   clearInterval(tm);const b=$('#st');if(!last)return;
   const f=async()=>{
     try{
-      const [o]=await rest('orders?select=status,printed&id=eq.'+last.id);
-      b.hidden=false;b.textContent=`طلب #${last.number} — ${SL[o.status]}${o.printed?' · تمت الطباعة 🖨️':''}`;
+      const [o]=await rest('orders?select=status,printed,bon_no&id=eq.'+last.id);
+      b.hidden=false;b.textContent=`${o.bon_no?'بون '+o.bon_no:'طلب جديد'} — ${SL[o.status]}${o.printed?' · تمت الطباعة 🖨️':''}`;
       if(o.status=='done'||o.status=='cancelled')clearInterval(tm);
     }catch(e){}
   };
   f();tm=setInterval(f,4000);
 }
 
-/* Settings: every change is saved to the database and appears on the cashier automatically */
+/* ---------- shifts: create them, watch the open one live ---------- */
+function shiftsView(){
+  $('#main').innerHTML=`<div id="lv" class="cat"></div>
+  <div class="cat"><b>إنشاء شيفت جديد</b><input id="sn" placeholder="اسم الشيفت (مثال: صباحي)"><input id="su" placeholder="اسم المستخدم (بالإنجليزية)" autocapitalize="none"><input id="sp" type="password" placeholder="كلمة المرور (4 أحرف على الأقل)"><button class="big" onclick="mkShift()">إنشاء الشيفت</button></div>
+  <div class="cat"><b>الشيفتات المتاحة</b><div id="dl"></div></div>`;
+  liveShift();defs();
+}
+async function liveShift(){
+  const el=$('#lv');if(!el)return;
+  try{
+    const [s]=await rest('shifts?select=*&status=eq.open');
+    if(!s){curShift=null;el.innerHTML='<b>الشيفت المفتوح</b><p class="mut">لا يوجد شيفت مفتوح الآن</p>';return}
+    const os=await rest('orders?select=total,status,bon_no&deleted_at=is.null&shift_id=eq.'+s.id);
+    const ok=os.filter(o=>o.status!='cancelled');
+    curShift=s;
+    el.innerHTML=`<b>🟢 شيفت مفتوح: ${esc(s.name)}</b> <span class="mut">(${esc(s.username)})</span>
+    <div class="tot"><span>المدة</span><span id="tmr">${dur(Date.now()-new Date(s.started_at))}</span></div>
+    <div class="tot"><span>الأرباح الآن</span><span>${ok.reduce((a,o)=>a+ +o.total,0)} ج</span></div>
+    <div class="mut">آخر بون: ${Math.max(0,...os.map(o=>o.bon_no||0))} · بدأ ${fd(s.started_at)}</div>`;
+  }catch(e){}
+}
+setInterval(()=>{const e=$('#tmr');if(e&&curShift)e.textContent=dur(Date.now()-new Date(curShift.started_at))},1000);
+async function defs(){
+  try{
+    const d=await rpc('list_shift_defs');
+    $('#dl').innerHTML=d.length?d.map(x=>`<div class="row"><span style="flex:1">${esc(x.name)} <span class="mut">(${esc(x.username)})</span></span><button class="x" onclick="delDef('${x.id}')">حذف</button></div>`).join(''):'<p class="mut">لا توجد شيفتات بعد</p>';
+  }catch(e){}
+}
+async function mkShift(){
+  const n=$('#sn').value.trim(),u=$('#su').value.trim(),p=$('#sp').value;
+  if(!n||!u||p.length<4)return alert('اكتب الاسم واسم المستخدم وكلمة مرور من 4 أحرف على الأقل');
+  try{await rpc('create_shift',{p_name:n,p_user:u,p_pass:p});$('#sn').value=$('#su').value=$('#sp').value='';defs()}
+  catch(e){alert('تعذر الإنشاء، قد يكون اسم المستخدم مستخدماً من قبل')}
+}
+async function delDef(id){if(!confirm('حذف هذا الشيفت؟ (سجلات الشيفتات المنتهية تبقى)'))return;try{await rpc('delete_shift_def',{p_id:id});defs()}catch(e){alert('لم يتم الحذف')}}
+
+/* ---------- log: closed shifts, deleted orders, recent orders ---------- */
+async function logView(){
+  $('#main').innerHTML='<p class="mut">جاري التحميل…</p>';
+  try{
+    const [sh,dl,od]=await Promise.all([
+      rest('shifts?select=*&status=eq.closed&order=ended_at.desc&limit=20'),
+      rest('orders?select=*&deleted_at=not.is.null&order=deleted_at.desc&limit=30'),
+      rest('orders?select=*&deleted_at=is.null&order=created_at.desc&limit=40')]);
+    const SRC={web:'موقع',owner:'أونر',cashier:'كاشير'},ST={new:'جديد',accepted:'مقبول',preparing:'تحضير',ready:'جاهز',done:'تم التسليم',cancelled:'ملغي'};
+    $('#main').innerHTML=`<div class="cat"><b>الشيفتات المنتهية</b>${sh.length?sh.map(s=>{const d=+s.diff;return `<div class="lr"><div><b>${esc(s.name)}</b> <span class="mut">${esc(s.username)}</span><div class="mut">${fd(s.started_at)} ← ${fd(s.ended_at)} · ${dur(new Date(s.ended_at)-new Date(s.started_at))}</div></div><div style="text-align:end">${s.sales} ج · ${s.orders_count} بون<div>في الدرج ${s.counted_cash} ج</div><div class="${d==0?'good':'bad'}">${d==0?'مطابق ✔':(d>0?'زيادة ':'عجز ')+Math.abs(d)+' ج'}</div></div></div>`}).join(''):'<p class="mut">لا توجد شيفتات منتهية</p>'}</div>
+    <div class="cat"><b>الطلبات المحذوفة</b>${dl.length?dl.map(o=>`<div class="lr"><div>بون ${o.bon_no||'-'} · ${o.total} ج<div class="mut">${esc(o.deleted_reason)} — ${esc(o.deleted_by)}</div></div><div class="mut">${fd(o.deleted_at)}</div></div>`).join(''):'<p class="mut">لا توجد طلبات محذوفة</p>'}</div>
+    <div class="cat"><b>آخر الطلبات</b>${od.map(o=>`<div class="lr ${o.status=='cancelled'?'str':''}"><div>${o.bon_no?'بون '+o.bon_no:'طلب'} · ${SRC[o.source]} · ${ST[o.status]}<div class="mut">${fd(o.created_at)}</div></div><b>${o.total} ج</b></div>`).join('')||'<p class="mut">لا توجد طلبات</p>'}</div>`;
+  }catch(e){$('#main').innerHTML='<p class="bad">تعذر تحميل السجل</p>'}
+}
+
+/* ---------- settings: every change is saved and shows on the cashier automatically ---------- */
 function openSet(){
   const o=$('#s2');
   o.innerHTML=`<h3>الإعدادات</h3><div class="mut">أي تغيير هنا يتحفظ فوراً ويظهر على الكاشير وقائمة العملاء.</div>
@@ -164,7 +235,8 @@ function openSet(){
   cats.map(c=>`<div class="cat"><div class="row"><input value="${esc(c.name_ar)}" onchange="upCat('${c.id}',this.value)"><button class="x" onclick="delCat('${c.id}')">حذف</button></div>`+
     items.filter(i=>i.category_id==c.id).map(i=>`<div class="row"><input value="${esc(i.name_ar)}" onchange="upItem('${i.id}',{name_ar:this.value})"><input class="p" type="number" min="0" value="${+i.price}" onchange="upItem('${i.id}',{price:+this.value})"><label><input type="checkbox" ${i.available?'checked':''} onchange="upItem('${i.id}',{available:this.checked})"> متاح</label><button class="x" onclick="delItem('${i.id}')">✕</button></div>`).join('')+
     `<div class="row"><input id="an_${c.id}" placeholder="صنف جديد"><input class="p" id="ap_${c.id}" type="number" min="0" placeholder="السعر"><button class="add" onclick="addItem('${c.id}')">+</button></div></div>`).join('')+
-  `<div class="cat"><div class="row"><input id="ncn" placeholder="قسم جديد"><button class="add" onclick="addCat()">+ قسم</button></div></div>`;
+  `<div class="cat"><div class="row"><input id="ncn" placeholder="قسم جديد"><button class="add" onclick="addCat()">+ قسم</button></div></div>
+  <button class="x" style="width:100%;padding:12px;margin-top:8px" onclick="logout();$('#o2').classList.remove('on')">تسجيل الخروج</button>`;
   $('#o2').classList.add('on');
 }
 const fail=()=>alert('لم يتم الحفظ، حاول مرة أخرى');
@@ -175,16 +247,16 @@ async function saveInfo(k,v){
 async function upCat(id,v){try{await rest('categories?id=eq.'+id,'PATCH',{name_ar:v.trim()});cats.find(c=>c.id==id).name_ar=v.trim()}catch(e){fail()}}
 async function upItem(id,b){try{await rest('items?id=eq.'+id,'PATCH',b);Object.assign(items.find(i=>i.id==id),b)}catch(e){fail()}}
 async function delItem(id){if(!confirm('حذف هذا الصنف؟'))return;try{await rest('items?id=eq.'+id,'DELETE');items=items.filter(i=>i.id!=id);cart=cart.filter(l=>l.id!=id);openSet();marks()}catch(e){fail()}}
-async function delCat(id){if(!confirm('حذف القسم وكل أصنافه؟'))return;try{await rest('categories?id=eq.'+id,'DELETE');cats=cats.filter(c=>c.id!=id);const g=items.filter(i=>i.category_id==id).map(i=>i.id);items=items.filter(i=>i.category_id!=id);cart=cart.filter(l=>!g.includes(l.id));openSet();home();marks()}catch(e){fail()}}
+async function delCat(id){if(!confirm('حذف القسم وكل أصنافه؟'))return;try{await rest('categories?id=eq.'+id,'DELETE');cats=cats.filter(c=>c.id!=id);const g=items.filter(i=>i.category_id==id).map(i=>i.id);items=items.filter(i=>i.category_id!=id);cart=cart.filter(l=>!g.includes(l.id));openSet();marks()}catch(e){fail()}}
 async function addItem(cid){
   const n=$('#an_'+cid).value.trim(),p=+$('#ap_'+cid).value;if(!n||!(p>=0))return alert('اكتب الاسم والسعر');
   try{const [r]=await rest('items','POST',{category_id:cid,name_ar:n,price:p,sort:items.length+1});items.push(r);openSet()}catch(e){fail()}
 }
 async function addCat(){
   const n=$('#ncn').value.trim();if(!n)return;
-  try{const [r]=await rest('categories','POST',{id:'c'+Date.now(),name_ar:n,sort:cats.length+1});cats.push(r);openSet();home()}catch(e){fail()}
+  try{const [r]=await rest('categories','POST',{id:'c'+Date.now(),name_ar:n,sort:cats.length+1});cats.push(r);openSet()}catch(e){fail()}
 }
-$('#o2').addEventListener('click',e=>{if(e.target.id=='o2'){home()}});
+$('#o2').addEventListener('click',e=>{if(e.target.id=='o2'&&mode=='new')home()});
 
 S?start():($('#lg').hidden=false);
 </script>
